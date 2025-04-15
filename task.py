@@ -1,7 +1,7 @@
 
 from datetime import datetime
 from typing import List, Dict, Optional, Set
-import networkx as nx # Included as it was in your import list
+import networkx as nx 
 
 # --- Task Class ---
 class Task:
@@ -31,12 +31,10 @@ class Task:
 
 
         self.duration = duration
-        # Dependencies are usually handled in a second pass of parsing if loading from text,
-        # but the constructor accepts them directly.
         self.dependencies = dependencies
 
         self.time_spent = time_spent
-        # --- Status Calculation ---
+        #how do we do --- Status Calculation ---
         # Calculate status based on time_spent / duration. Clamp between 0 and 1.
         # Handle duration = 0 case: status is 1.0 if time_spent > 0, else 0.0.
         if self.duration > 0:
@@ -48,7 +46,7 @@ class Task:
 
         self.source_file = source_file # Track the origin file
 
-        # --- Weights for priority scoring (can be adjusted) ---
+        # --- Weights for priority scoring ( option souhld be adjusted) ---
         # These weights are used in the computePriorityScore method
         # They determine the relative importance of different factors.
         self.w1, self.w2, self.w3, self.w4, self.w5, self.w6 = 0.166, 0.166, 0.166, 0.166, 0.166, 0.166
