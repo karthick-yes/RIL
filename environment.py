@@ -2,8 +2,8 @@ import networkx as nx
 import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any, Set
-from task import Task # Assuming task.py exists and contains the Task class
-from dag_builder import build_task_dag # Assuming dag_builder.py exists and contains build_task_dag
+from task import Task 
+from dag_builder import build_task_dag 
 import gymnasium as gym
 
 class TaskSchedulingEnv(gym.Env):
@@ -23,8 +23,8 @@ class TaskSchedulingEnv(gym.Env):
             max_tasks_in_state: The maximum number of tasks whose state will be
                                 included in the observation vector.
         """
-        super().__init__() # <--- MODIFICATION: Call the base class constructor
-
+        super().__init__() 
+        
         if not isinstance(task_registry, dict):
             raise TypeError("task_registry must be a dictionary.")
         if not all(isinstance(task, Task) for task in task_registry.values()):
@@ -101,7 +101,7 @@ class TaskSchedulingEnv(gym.Env):
 
         except Exception as e:
              print(f"Error calculating assumed unavailable slots: {e}")
-             # Decide how to handle this error - maybe proceed with no unavailable slots?
+             # will Decide how to handle this error - maybe proceed with no unavailable slots?
 
 
         print(f"Initialized with {len(self.unavailable_slots_indices)} assumed unavailable time slot indices.")
@@ -121,12 +121,11 @@ class TaskSchedulingEnv(gym.Env):
         self.action_space_size = 1 + self.max_tasks_in_state
         print(f"Action Space Size: {self.action_space_size} (1 for wait + {self.max_tasks_in_state} for scheduling attempts)")
 
-        # <--- MODIFICATION: Define the action space for Gymnasium ---
+        # Action space for GYMNASIUM
         self.action_space = gym.spaces.Discrete(self.action_space_size)
         print(f"Gymnasium Action Space: {self.action_space}")
 
-
-        # <--- MODIFICATION: Define the Observation Space Definition ---
+        #Observation Space for GYMNASIUM
         # Defines the structure, shape, and bounds of the state vector returned by get_state()
         task_feature_size = self._get_task_state_size() # Which is currently 8
         observation_space_size = 1 + self.num_time_slots + (self.max_tasks_in_state * task_feature_size)
@@ -147,8 +146,6 @@ class TaskSchedulingEnv(gym.Env):
 
         # 3. Task states flat: max_tasks_in_state * task_feature_size
         # This part spans indices from 1 + num_time_slots onwards
-        # Based on your _get_task_state_representation and comments, and assuming
-        # your max_task_duration/max_base_priority lead to intended scaling.
         # We use a safe high bound for normalized remaining duration just in case it exceeds 1.0.
         high_task_features = np.array([
             1.0,   # 1. Status (0 to 1)
@@ -283,12 +280,11 @@ class TaskSchedulingEnv(gym.Env):
         total_env_horizon_days_for_scaling = max(1.0, total_env_horizon_seconds / (24 * 3600.0))
 
 
-        # Assuming Task.computePriorityScore is designed to use 'max_horizon' as a scaling factor
         dynamic_score = task.computePriorityScore(
              current_datetime=current_datetime, # Pass current time (used internally by Task for clamped_days)
-             max_horizon=total_env_horizon_days_for_scaling, # <--- THIS IS THE MODIFICATION
-             max_priority=10, # Pass your configured max priority (adjust if different)
-             max_duration=20.0, # Pass your configured max duration (adjust if different)
+             max_horizon=total_env_horizon_days_for_scaling, 
+             max_priority=10, # Passing configured max priority 
+             max_duration=20.0, # Passing configured max duration
              max_deps=max(1, len(task.dependencies) + 5) # Pass a scale for max dependencies
              )
         features.append(dynamic_score)
@@ -379,7 +375,7 @@ class TaskSchedulingEnv(gym.Env):
 
 
     def reset(self, seed: Optional[int] = None, 
-              options: Optional[dict] = None, ) -> Tuple[np.ndarray, Dict[str, Any]]: # <--- MODIFICATION: Update return type hint for Gymnasium
+              options: Optional[dict] = None, ) -> Tuple[np.ndarray, Dict[str, Any]]: 
         """
         Resets the environment to an initial state for a new episode.
         Resets task statuses and time spent to their initial values,
@@ -407,109 +403,105 @@ class TaskSchedulingEnv(gym.Env):
 
         print("Environment reset to initial state.")
         initial_state = self.get_state()
-        info = {} # <--- MODIFICATION: Create an empty info dictionary for Gymnasium API
+        info = {} # Create an empty info dictionary for Gymnasium API
 
-        return initial_state, info # <--- MODIFICATION: Return state and info (Gymnasium API)
+        return initial_state, info #  Return state and info (Gymnasium API)
 
 
-    def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]: # <--- MODIFICATION: Update return type hint for Gymnasium (terminated, truncated)
+
+    def step(self, action: int) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
         """
         Executes one step in the environment based on the chosen action.
-        Updates the environment's state, calculates the reward, and determines if the episode is done.
+        Updates the environment's state, calculates rewards, and determines if the episode is done.
 
         Args:
-            action: An integer representing the chosen action.
-                    Action 0: Wait in the current time slot.
-                    Action 1 to max_tasks_in_state: Attempt to schedule the task
-                    at index (action - 1) in the sorted list of tasks considered
-                    in the state, into the CURRENT time slot.
+            action: An integer representing the chosen action (0 for wait, 1+ for task index).
+                    Expected to be a single integer for an unwrapped env, or a list/array
+                    of integers for a vectorized env (even if num_envs=1).
+                    We expect a list/array of size 1 in this script.
 
         Returns:
-            observation (object): The state of the environment after executing the action.
+            observation (np.ndarray): The state of the environment after executing the action.
             reward (float): The immediate reward received for the action.
-            terminated (bool): True if the episode terminated (failure or success condition met).
-            truncated (bool): True if the episode was truncated (e.g., time limit exceeded, but not a failure/success).
-            info (dict): A dictionary containing additional information (e.g., debugging, metrics).
+            terminated (bool): True if the episode terminated (success or failure end state).
+            truncated (bool): True if the episode was truncated (e.g., time limit/horizon reached).
+            info (dict): A dictionary containing additional information.
         """
-        # Ensure action is within the valid range
-        if not 0 <= action < self.action_space_size:
-             print(f"Invalid action received: {action}. Must be between 0 and {self.action_space_size - 1}.")
-             # Penalize invalid action and transition to the next time slot
-             reward = -2.0 # Large penalty for an invalid action
-             terminated = False # <--- MODIFICATION: Use 'terminated'
-             truncated = False # <--- MODIFICATION: Set 'truncated' (False as no explicit truncation condition)
-             info = {'is_valid': False, 'error': 'invalid_action_index'} # Added error info
-
-             # Advance time even on invalid action (original logic)
-             self.current_time_slot_index += 1
-
-             # Check if this advancement caused us to hit the end of the horizon
-             if self.current_time_slot_index >= self.num_time_slots:
-                 terminated = True # End of episode if we run out of slots
-                 print("Step: Reached end of time slots after invalid action.")
-                 # Note: Terminal rewards/penalties for this case are calculated below
-                 # in the 'if terminated:' block, after time advancement.
-
-             next_state = self.get_state()
-             # <--- MODIFICATION: Update return value format for Gymnasium ---
-             return next_state, reward, terminated, truncated, info
+        # In a vectorized environment, action comes in as a list/array [action_int].
+        # We need to extract the single action for our env logic since num_envs=1.
+        # Add a check here to handle the expected input format
+        if isinstance(action, (list, np.ndarray)):
+             if len(action) == 1:
+                 action_to_take = action[0]
+             else:
+                 # This shouldn't happen with num_envs=1 and make_vec_env unless something is wrong.
+                 print(f"Error: Expected action list/array of size 1, but got size {len(action)}")
+                 # Handle this as a critical error - cannot proceed
+                 # Return terminal state, 0 reward, terminated=True, truncated=False, error info
+                 error_info = {'is_valid': False, 'error': 'unexpected_action_batch_size'}
+                 current_state = self.get_state() # Or return zeros if state is unreliable
+                 return current_state, 0.0, True, False, error_info
+        else:
+             # If not using make_vec_env, action might be a single int.
+             # For consistency with the script's use of make_vec_env,
+             # we expect the list/array format. Print a warning if it's just int.
+             print(f"Warning: Received single integer action {action}. Expected list/array [action]. Assuming num_envs=1 format.")
+             action_to_take = action
 
 
-        print(f"\n--- Processing Action {action} at Time Slot {self.current_time_slot_index} ({self._get_current_datetime().strftime('%Y-%m-%d %H:%M')}) ---")
+        print(f"\n--- Processing Action {action_to_take} at Time Slot {self.current_time_slot_index} ({self._get_current_datetime().strftime('%Y-%m-%d %H:%M')}) ---")
 
-        reward = 0.0
-        terminated = False # <--- MODIFICATION: Initialize 'terminated'
-        truncated = False # <--- MODIFICATION: Initialize 'truncated'
-        info = {'is_valid': True} # Assume valid initially
+        reward = 0.0 # Immediate reward for this step
+        info = {'is_valid': True, 'scheduled_task_id': None} # Info dictionary
 
         current_slot_index = self.current_time_slot_index
-        # current_datetime = self._get_current_datetime() # Already called below if needed
+        current_datetime = self._get_current_datetime()
 
-        # --- Check if the current slot is unavailable (static constraint) ---
+        # --- 1. Validate and Process the Action ---
+
+        # Check if the current slot is unavailable (static constraint)
         if current_slot_index in self.unavailable_slots_indices:
-             print(f"Slot {current_slot_index} is unavailable. Any scheduled action will be invalid.")
-             # If the agent tried to schedule something here, it's invalid.
-             # If the agent chose 'wait', it's a valid action in an unavailable slot.
-             if action != 0: # If action is not 'wait'
-                 print("Invalid Action: Attempted to schedule in an unavailable slot.")
-                 reward = -1.0 # Penalty for trying to use an unavailable slot
-                 info['is_valid'] = False
-                 info['error'] = 'scheduled_unavailable_slot'
-             else: # Action is 'wait' in an unavailable slot
-                  print("Action: Waiting in an unavailable slot.")
-                  # reward = 0.0 # Already initialized to 0.0
+            if action_to_take != 0: # If the agent tried to schedule something here (not wait)
+                print("Invalid Action: Attempted to schedule in an unavailable slot.")
+                reward = -1.0 # Penalty
+                info['is_valid'] = False
+                info['error'] = 'scheduled_unavailable_slot'
+            else: # Action was 'wait' (0) in an unavailable slot
+                 print("Action: Waiting in an unavailable slot.")
+                 # reward remains 0.0
 
 
-        # --- Process Action 0: Wait ---
-        elif action == 0:
+        # Process Action 0: Wait (only if slot is available)
+        elif action_to_take == 0:
             print("Action: Waiting in the current time slot.")
-            # reward = 0.0 # Already initialized to 0.0
+            # reward remains 0.0
 
-        # --- Process Actions 1 to max_tasks_in_state: Attempt to Schedule Task ---
-        else: # Action > 0, attempting to schedule
-             # Determine which task the agent is trying to schedule based on action index
-             task_index_in_state = action - 1
-             # Get the actual task ID from the sorted list of tasks considered in the state
-             # This uses the assumption that tasks in state are sorted by ID
-             all_task_ids_sorted = sorted(list(Task.registry.keys()))
 
-             # --- Validate Scheduling Action ---
-             # Check if the action index corresponds to a valid task within the current task registry size
-             # This prevents trying to schedule a "padded" task slot if there are fewer actual tasks than max_tasks_in_state
-             if task_index_in_state >= len(all_task_ids_sorted):
-                 print(f"Invalid Action: Attempted to schedule a task from state index {task_index_in_state}, but only {len(all_task_ids_sorted)} tasks exist in registry.")
-                 reward = -1.0 # Penalty for trying to schedule a task that doesn't exist
-                 info['is_valid'] = False
-                 info['error'] = 'scheduled_padded_task'
-                 task_to_schedule = None # Ensure task_to_schedule is None for subsequent checks
-             else:
+        # Process Actions > 0: Attempt to Schedule Task (only if slot is available)
+        else: # action_to_take > 0
+            # Determine which task the agent is trying to schedule based on action index
+            task_index_in_state = action_to_take - 1
+
+            # Get the actual task ID from the sorted list of tasks considered in the state
+            # This uses the assumption that tasks in state are sorted by ID (ensure this is true in get_state)
+            all_task_ids_sorted = sorted(list(Task.registry.keys()))
+
+            # --- Validate Scheduling Attempt against Environment Rules ---
+            task_to_schedule = None # Initialize task_to_schedule
+
+            # Check if the action index corresponds to a valid task within the current task registry size
+            if task_index_in_state >= len(all_task_ids_sorted):
+                print(f"Invalid Action: Attempted to schedule a task from state index {task_index_in_state}, but only {len(all_task_ids_sorted)} tasks exist in registry.")
+                reward = -1.0 # Penalty
+                info['is_valid'] = False
+                info['error'] = 'scheduled_padded_task'
+                # task_to_schedule remains None
+
+            else:
                  task_id_to_schedule = all_task_ids_sorted[task_index_in_state]
                  task_to_schedule = Task.get_task_by_id(task_id_to_schedule) # Retrieve the actual task object
 
-                 # Validate the scheduling attempt against environment rules
-                 # Note: `current_slot_index in self.unavailable_slots_indices` is checked BEFORE this `else` block.
-                 # So, if we are in this block, the slot is considered AVAILABLE according to the static rules.
-                 if task_to_schedule is None: # This should theoretically not happen if task_id came from registry keys
+                 if task_to_schedule is None: # Should not happen if task_id came from registry keys
                      print(f"Error: Task ID {task_id_to_schedule} not found in registry after validation.")
                      reward = -1.0 # Penalty
                      info['is_valid'] = False
@@ -530,18 +522,15 @@ class TaskSchedulingEnv(gym.Env):
                  else:
                      # Check dependencies
                      dependencies_met = True
-                     # Assume Task.get_task_by_id handles non-existent dep_id gracefully (e.g., returns None)
                      for dep_id in task_to_schedule.dependencies:
                          dep_task = Task.get_task_by_id(dep_id)
                          # Dependency is met if dependency task exists AND is completed
-                         if dep_task is None:
-                             print(f"Warning: Dependency task {dep_id} not found in registry for task {task_to_schedule.ID}.")
-                             # Treat missing dependency as unmet
+                         # If dep_task is None, or not completed, dependencies are not met
+                         if dep_task is None or not dep_task.is_completed():
                              dependencies_met = False
+                             if dep_task is None:
+                                  print(f"Warning: Dependency task {dep_id} not found in registry for task {task_to_schedule.ID}.")
                              break # Stop checking dependencies if one is unmet/missing
-                         if not dep_task.is_completed():
-                              dependencies_met = False
-                              break # Stop checking dependencies if one is not completed
 
 
                      if not dependencies_met:
@@ -554,159 +543,108 @@ class TaskSchedulingEnv(gym.Env):
                          # If we reach here, the action is valid: schedule the task in the current slot.
                          print(f"Valid Action: Scheduling Task {task_to_schedule.ID} ('{task_to_schedule.name}') in slot {current_slot_index}.")
                          self.scheduled_slots[current_slot_index] = task_to_schedule.ID
+                         info['scheduled_task_id'] = task_to_schedule.ID
 
                          # Simulate working on the task for the duration of the time slot
-                         work_duration_hours = self.slot_duration.total_seconds() / 3600.0 # Work for the full slot duration
+                         work_duration_hours = self.slot_duration.total_seconds() / 3600.0
 
                          # Update task's time spent and status
                          task_to_schedule.time_spent += work_duration_hours
                          # Recalculate status based on new time_spent, capping at 1.0
-                         # If duration is 0, status is 1 if time spent > 0, else 0.
-                         task_to_schedule.status = task_to_schedule.time_spent / task_to_schedule.duration if task_to_schedule.duration > 0 else (1.0 if task_to_schedule.time_spent > 0 else 0.0)
+                         if task_to_schedule.duration > 0:
+                             task_to_schedule.status = task_to_schedule.time_spent / task_to_schedule.duration
+                         else: # Handle duration = 0 case
+                             task_to_schedule.status = 1.0 if task_to_schedule.time_spent > 0 else 0.0
                          task_to_schedule.status = min(task_to_schedule.status, 1.0) # Cap status at 1.0
 
-                         # Record time spent in this specific slot
+                         # Record time spent in this specific slot (optional, for tracking)
                          self.time_spent_in_slots[(task_to_schedule.ID, current_slot_index)] = work_duration_hours
 
                          print(f"Task {task_to_schedule.ID} status updated to {task_to_schedule.status:.2f}. Total time spent: {task_to_schedule.time_spent:.2f}")
 
                          # --- Calculate Immediate Reward for Valid Scheduling Action ---
-                         # Reward for making progress on a task (proportional to work done, which is slot duration)
+                         # Reward for making progress on a task (proportional to work done)
                          reward += 0.1 * work_duration_hours # Small positive reward for working
 
-                         # Check for task completion *after* updating status
+                         # Check for task completion *after* updating status in this step
                          if task_to_schedule.is_completed():
-                              print(f"Task {task_to_schedule.ID} ('{task_to_schedule.name}') completed!")
-                              # Significant positive reward for completing a task, scaled by base priority
-                              completion_reward = 5.0 * task_to_schedule.priority # Example reward
-                              reward += completion_reward
-                              info['completed_task'] = task_to_schedule.ID
+                             print(f"Task {task_to_schedule.ID} ('{task_to_schedule.name}') completed!")
+                             # Significant positive reward for completing a task, scaled by base priority
+                             completion_reward = 5.0 * task_to_schedule.priority # Example reward
+                             reward += completion_reward
+                             info['completed_task'] = task_to_schedule.ID
 
 
-        # --- Advance Environment Time ---
-        # In this discrete time slot environment, time advances by one slot per step,
-        # regardless of whether a task was scheduled or the action was valid (except for the invalid action index case above).
-        if action != 0 or current_slot_index not in self.unavailable_slots_indices: # Advance time unless it was an invalid action index (already handled) or wait in unavailable
-            # Re-checking the invalid index condition just to be crystal clear time advances unless it was that specific error
-            # A simpler logic is time always advances unless the episode just ended from the *previous* step's logic.
-            # Let's rely on the main time advance logic always running unless episode ends.
-            pass # Time advancement is handled *after* this validation block
-
-        # Time advances *one* slot per step AFTER processing the action for the *current* slot.
-        # The initial invalid action index check handles time advancement internally for that specific case.
-        # For all other cases (action 0, or valid/invalid scheduling attempts), time advances here.
-        if not (not 0 <= action < self.action_space_size and self.current_time_slot_index + 1 <= self.num_time_slots):
-             # This condition is a bit convoluted. Let's simplify: time always advances by 1 unless
-             # the episode termination logic below determines the episode is over *before* the next step.
-             # The initial invalid index case already handled its own time advance and termination check.
-             # Let's remove the redundant time advance inside the invalid action check at the top,
-             # and let time always advance by 1 at the end of the step. This is the standard RL loop.
-             pass # Keep the main time advance logic below.
-
-        # --- Standard Time Advance (occurs for every step taken) ---
-        # This should happen after processing the action and calculating immediate rewards,
-        # but before checking termination conditions *for the next state*.
-        # Let's move the time advance to the end of the step logic.
-        # The original code had it before the done check, which means the 'current_time_slot_index'
-        # could be beyond num_time_slots *before* the done check happens, correctly signaling end.
-        # Let's stick to that structure.
-
-        # Original code structure:
-        # 1. Process action, calc immediate reward
-        # 2. Advance time (self.current_time_slot_index += 1)
-        # 3. Check if done (using the NEW index)
-        # 4. Calc terminal rewards (if done)
-        # 5. Get next state (using the NEW index)
-        # 6. Return
-
-        # This structure implies that the time index refers to the *start* of the slot
-        # being processed, and after the step, the index points to the *next* slot.
-        # This is standard. Let's keep the time advance *before* the main done check.
-
-        # If the *initial* check for action index was invalid, time already advanced and checked done.
-        # If we are in the main `elif action == 0:` or `else:` block, the initial index check passed.
-        # In these cases, time should advance *once* at the end of processing the current slot.
-
-        # Let's simplify:
-        # Handle invalid action index (top) - it does its own time advance and return.
-        # For *all other valid action indices*, process action, calculate immediate reward,
-        # THEN advance time by 1, THEN check if terminated/truncated using the new index,
-        # THEN calculate terminal rewards, THEN get next state, THEN return.
-
-        # The time advance IS already at the correct logical point in the original code structure
-        # (before the main done check). My previous edits added a conflicting time advance
-        # inside the invalid action index check. Let's remove that conflicting one.
-
-        # REMOVED: self.current_time_slot_index += 1 # Advance time
-        # REMOVED: if self.current_time_slot_index >= self.num_time_slots: ... done = True ...
-        # REMOVED: next_state = self.get_state()
-        # REMOVED: return next_state, reward, done, info # <-- Invalid action branch return
+        # --- 2. Advance Environment Time ---
+        # Time always advances by one slot per step taken, regardless of action validity (unless terminal)
+        self.current_time_slot_index += 1
 
 
-        # --- Main Time Advance (For all valid actions 0 to action_space_size - 1) ---
-        # This occurs after processing the action for the *current* slot.
-        self.current_time_slot_index += 1 # Advance to the next time slot
+        # --- 3. Check if Episode is Terminated or Truncated ---
+        terminated = False # Initialize flags for this check
+        truncated = False
 
-
-        # --- Check if Episode is Terminated ---
-        # The episode ends (terminates) when:
-        # 1. All time slots in the horizon are used (the new index is >= num_time_slots).
-        # 2. All tasks are completed.
-
-        # Condition 1: End of time slots reached (check using the new index)
+        # Condition 1: End of time slots reached (check using the NEW index)
         if self.current_time_slot_index >= self.num_time_slots:
-             terminated = True # Episode terminates
-             print("End of scheduling horizon reached. Episode Terminated.")
-             # Note: Terminal rewards/penalties for this case are calculated below.
+            truncated = True # Episode truncated by reaching horizon
+            print("End of scheduling horizon reached.") # Print truncated message
 
-        # Condition 2: All tasks completed
-        # Check completion status AFTER advancing time, so reward applies in the step that finishes the task
+        # Condition 2: All tasks completed (check using the latest statuses)
+        # Check completion status AFTER advancing time and processing potential completion from THIS step
         all_tasks_completed = all(task.is_completed() for task in Task.registry.values())
         if all_tasks_completed:
-             # If all tasks are completed, the episode terminates, potentially before reaching the horizon end.
-             # Setting terminated=True here ensures the episode ends.
-             if not terminated: # Only print the primary reason if not already set by horizon end
-                 print("All tasks completed. Episode Terminated.")
-             terminated = True
-             # Maybe add a bonus reward for finishing early if applicable (calculate here before terminal penalties)
+            terminated = True # Episode terminates by completing all tasks
+            # Only print if this is the primary reason for termination
+            if not truncated:
+                 print("All tasks completed.")
 
 
-        # --- Calculate Final Rewards/Penalties at the END of the episode ---
-        # This block runs if the episode just terminated (`terminated` is True).
-        if terminated:
-             print("Calculating final episode rewards/penalties.")
-             # Penalties for missed deadlines for tasks that are NOT completed
-             # Use the time corresponding to the start of the NEW current slot index.
-             # If current_time_slot_index == num_time_slots, this is the time *after* the last slot ends.
-             current_datetime_at_end = self._get_current_datetime()
+        # --- 4. Calculate Final Rewards/Penalties at the END of the episode ---
+        # This block runs if the episode just terminated OR was truncated.
+        if terminated or truncated:
+            print("Calculating final episode rewards/penalties.")
+            # Penalties for missed deadlines for tasks that are NOT completed by the end time
+            # Use the time corresponding to the start of the NEW current slot index.
+            # If current_time_slot_index == num_time_slots, this is the time *after* the last slot ends.
+            current_datetime_at_end = self._get_current_datetime()
 
-             num_missed_deadlines = 0
-             for task in Task.registry.values():
-                 # Only penalize uncompleted tasks whose deadlines were missed by the time the episode ended
-                 if not task.is_completed() and current_datetime_at_end > task.deadline:
-                     num_missed_deadlines += 1
-                     print(f"Task {task.ID} ('{task.name}') missed deadline.")
-                     # Penalty scaled by priority and how much work was remaining
-                     remaining_work_ratio = max(0.0, 1.0 - task.status) # Ensure ratio is not negative
-                     penalty = -10.0 * task.priority * remaining_work_ratio # Example penalty
-                     reward += penalty # Add penalty to the final reward
+            num_missed_deadlines = 0
+            for task in Task.registry.values():
+                # Only penalize uncompleted tasks whose deadlines were missed by the episode end time
+                if not task.is_completed() and current_datetime_at_end > task.deadline:
+                    num_missed_deadlines += 1
+                    print(f"Task {task.ID} ('{task.name}') missed deadline.")
+                    # Penalty scaled by priority and how much work was remaining
+                    remaining_work_ratio = max(0.0, 1.0 - task.status) # Ensure ratio is not negative
+                    penalty = -10.0 * task.priority * remaining_work_ratio # Example penalty - adjust magnitude!
+                    reward += penalty # Add penalty to the final reward
 
-             info['episode_outcome'] = 'completed' if all_tasks_completed else 'horizon_ended'
-             info['num_missed_deadlines'] = num_missed_deadlines
+            # Update info dictionary with episode outcome and metrics
+            if terminated and all_tasks_completed:
+                 info['episode_outcome'] = 'completed'
+            elif truncated:
+                 info['episode_outcome'] = 'truncated_horizon'
+            elif terminated: # Should only happen if another termination condition was added?
+                 info['episode_outcome'] = 'terminated'
+            else: # Should not happen if done is True
+                 info['episode_outcome'] = 'unknown_termination'
+
+            info['num_missed_deadlines'] = num_missed_deadlines
 
 
-        # --- Get Next State ---
-        # This is the state corresponding to the NEW current_time_slot_index
+        # --- 5. Get Next State ---
         next_state = self.get_state()
 
-        # Return the results of the step - Use Gymnasium's 5-element return
-        # <--- MODIFICATION: Update return value format for Gymnasium ---
+        # --- DEBUG PRINT ---
+        print(f"DEBUG: Step returning - Terminated: {terminated}, Truncated: {truncated}")
+        if terminated or truncated:
+             # This print should ideally match the "Episode finished after..." message
+             print(f"DEBUG: Episode ending after processing slot {self.current_time_slot_index - 1}. Final step reward: {reward}")
+
+        # --- 6. Return the results of the step ---
         return next_state, reward, terminated, truncated, info
 
 
-
-    # Optional: Implement render method if visualization is needed
-    # Add this method inside your TaskSchedulingEnv class definition
 
 def render(self, mode='human'):
     """
