@@ -1,11 +1,9 @@
-# generate_tasks.py
-
 import random
 import numpy as np
 from datetime import datetime, timedelta
 import os
 import pickle
-from typing import List, Dict, Optional, Tuple # Needed for type hints
+from typing import List, Dict, Optional, Tuple 
 from task import Task 
 
 
@@ -158,7 +156,6 @@ def generate_tasks_procedurally(
             # Need to decrement next_id_counter if task creation failed after getting ID
             # Or handle ID generation more carefully. Let's assume Task.__init__
             # is robust and ID was incremented only on success. If not, adjust Task class.
-            # Assuming Task.__init__ handles its ID management correctly.
             pass
 
 
@@ -166,7 +163,7 @@ def generate_tasks_procedurally(
     return Task.registry # Return the populated registry (which is Task.registry itself)
 
 
-# --- Example Usage ---
+# --- Usage ---
 if __name__ == "__main__":
     # --- Define Generation Parameters ---
     NUM_TASKS_TO_GENERATE = 200 # <--- Adjust this for more tasks!
@@ -197,7 +194,7 @@ if __name__ == "__main__":
 
     print(f"\nProcedurally generated {len(generated_registry)} tasks and saved to {OUTPUT_FILE}.")
 
-    # # --- Optional: Verify loading ---
+    # # --- Optional: if in case we have to Verify loading ---
     # print(f"\nVerifying load from {OUTPUT_FILE}")
     # Task.registry.clear() # Clear registry before loading to simulate a fresh start
     # Task.next_id_counter = 1

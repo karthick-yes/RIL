@@ -25,10 +25,10 @@ def build_task_dag(task_registry: Dict[int, Task]) -> nx.DiGraph:
             if dep_id in task_registry: # Ensure dependency task exists in registry
                 G.add_edge(dep_id, task_id)
             else:
-                # In a separate module, you might want to log this or handle differently
+                # In a separate module, I might  log this or handle differently
                 print(f"Warning: Dependency ID {dep_id} for task {task_id} ('{task.name}') not found in registry when building DAG. Edge skipped.")
 
-    # Optional: Check if the graph is a DAG
+    # Check if the graph is a DAG
     if not nx.is_directed_acyclic_graph(G):
         print("\n!!! Warning: The task dependency graph contains a cycle. This is not a valid DAG. !!!")
         # You might want to raise an error or handle this case (e.g., report the cycle)
