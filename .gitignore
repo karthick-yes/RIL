@@ -1,0 +1,19 @@
+# Python specific ignores
+__pycache__/
+*.pyc
+*.pyd
+*.egg-info/
+.Python
+build/
+dist/
+venv/ # Assuming your virtual environment is in a folder named venv
+env/  # Assuming your virtual environment might be in a folder named env
+.ipynb_checkpoints # Ignore Jupyter notebook checkpoints if you use them
+
+# IDE specific ignores (Optional - add if you use an IDE like VS Code, PyCharm)
+.vscode/
+.idea/
+
+# Project specific ignores
+generated_task_registry.pkl # Don't track the generated task data file
+schedule_output.md # Ignore the generated output schedule file if you don't want to track it
